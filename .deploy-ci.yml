@@ -1,0 +1,56 @@
+stages:
+  - deploy
+
+.base_deploy:
+  image: docker-proxy.nntc.pro/ubuntu:18.04
+  stage: deploy
+  before_script:
+    - apt -qq update && apt -qq -y install openssh-client
+    - eval `ssh-agent -s`
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p /root/.ssh
+    - chmod 700 /root/.ssh
+    - ssh-keyscan ${STAND_HOST} >> ~/.ssh/known_hosts
+    - chmod 644 /root/.ssh/known_hosts
+  script:
+    - ssh ${STAND_USER}@${STAND_HOST} 'docker service update --force --image '$GLOBAL_DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG $SERVICE' '
+
+deploy_dev:
+  extends: .base_deploy
+  stage: deploy
+  rules:  
+    - if: $CI_COMMIT_REF_NAME =~ /testVersion/
+      variables:
+        IMAGE_TAG: $CI_COMMIT_REF_NAME
+        SSH_PRIVATE_KEY: $SSH_PRIVATE_KEY
+        STAND_HOST: $STAND_HOST
+        STAND_USER: $STAND_USER  
+      when: manual      
+    - if: $CI_COMMIT_REF_NAME == /dev/ || $CI_COMMIT_REF_NAME =~ /develop/
+      variables:
+        IMAGE_TAG: $CI_COMMIT_REF_NAME
+        SSH_PRIVATE_KEY: $SSH_PRIVATE_KEY
+        STAND_HOST: $STAND_HOST
+        STAND_USER: $STAND_USER
+      when: always
+    - when: never
+  environment:
+    name: dev
+
+deploy_qa:
+  extends: .base_deploy
+  stage: deploy
+  rules:  
+    - if: $CI_PROJECT_ID == "13" && $CI_COMMIT_REF_NAME =~ /main/
+      variables:
+        IMAGE_TAG: $CI_COMMIT_REF_NAME
+    - if: $CI_COMMIT_REF_NAME =~ /main/ || $CI_COMMIT_REF_NAME =~ /release/
+      variables:
+        IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+        SSH_PRIVATE_KEY: $SSH_PRIVATE_KEY
+        STAND_HOST: $STAND_HOST
+        STAND_USER: $STAND_USER
+      when: manual  
+    - when: never
+  environment:
+    name: qa
