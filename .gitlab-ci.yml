@@ -1,0 +1,11 @@
+include:
+  - project: 'vvalentov/gitlab-templates'
+    refs: main
+    file:
+      - '.build-ci.yml'
+      - '.deploy-ci.yml'
+
+
+stages:
+  - build
+  - deploy
